@@ -185,7 +185,7 @@ class FileGenerator extends AbstractGenerator
                     $fileGenerator->setFilename($value);
                     continue;
                 case 'class':
-                    $fileGenerator->setClass(($value instanceof ClassGenerator) ? : ClassGenerator::fromArray($value));
+                    $fileGenerator->setClass(($value instanceof ClassGenerator) ? $value : ClassGenerator::fromArray($value));
                     continue;
                 case 'requiredfiles':
                     $fileGenerator->setRequiredFiles($value);
@@ -224,7 +224,6 @@ class FileGenerator extends AbstractGenerator
         }
 
         $this->docBlock = $docBlock;
-
         return $this;
     }
 

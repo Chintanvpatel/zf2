@@ -10,13 +10,12 @@
 
 return array(
     '' => array(
-        'plural_forms' => 'nplurals=3; plural=(n==0 ? 0 : (n == 1 ? 1 : 2));'
+        'plural_forms' => 'nplurals=2; plural=n!=1;'
     ),
     'Message 2' => 'Nachricht 2',
     'Message 9' => 'Nachricht 9',
     'Message 11' => array(
         'Nachricht 11 - 0',
         'Nachricht 11 - 1',
-        'Nachricht 11 - 2',
     ),
 );
