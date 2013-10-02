@@ -9,7 +9,7 @@
 
 namespace Zend\Code\Generator;
 
-use Zend\Code\Generator\DocBlock\Tag as DockBlockTag;
+use Zend\Code\Generator\DocBlock\Tag as DocBlockTag;
 use Zend\Code\Reflection\DocBlockReflection;
 
 class DocBlockGenerator extends AbstractGenerator
@@ -35,7 +35,7 @@ class DocBlockGenerator extends AbstractGenerator
     protected $indentation = '';
 
     /**
-     * @var boolean
+     * @var bool
      */
     protected $wordwrap = true;
 
@@ -56,7 +56,7 @@ class DocBlockGenerator extends AbstractGenerator
         $docBlock->setLongDescription($reflectionDocBlock->getLongDescription());
 
         foreach ($reflectionDocBlock->getTags() as $tag) {
-            $docBlock->setTag(DockBlockTag::fromReflection($tag));
+            $docBlock->setTag(DocBlockTag::fromReflection($tag));
         }
 
         return $docBlock;
@@ -162,20 +162,20 @@ class DocBlockGenerator extends AbstractGenerator
     }
 
     /**
-     * @param  array|DockBlockTag $tag
+     * @param  array|DocBlockTag $tag
      * @throws Exception\InvalidArgumentException
      * @return DocBlockGenerator
      */
     public function setTag($tag)
     {
         if (is_array($tag)) {
-            $tag = new DockBlockTag($tag);
-        } elseif (!$tag instanceof DockBlockTag) {
-            throw new Exception\InvalidArgumentException(
+            $tag = new DocBlockTag($tag);
+        } elseif (!$tag instanceof DocBlockTag) {
+            throw new Exception\InvalidArgumentException(sprintf(
                 '%s expects either an array of method options or an instance of %s\DocBlock\Tag',
                 __METHOD__,
                 __NAMESPACE__
-            );
+            ));
         }
 
         $this->tags[] = $tag;
@@ -183,7 +183,7 @@ class DocBlockGenerator extends AbstractGenerator
     }
 
     /**
-     * @return DockBlockTag[]
+     * @return DocBlockTag[]
      */
     public function getTags()
     {
@@ -193,19 +193,19 @@ class DocBlockGenerator extends AbstractGenerator
     /**
      * Set the word wrap
      *
-     * @param boolean $value
+     * @param bool $value
      * @return \Zend\Code\Generator\DocBlockGenerator
      */
     public function setWordWrap($value)
     {
-        $this->wordwrap = (boolean) $value;
+        $this->wordwrap = (bool) $value;
         return $this;
     }
 
     /**
      * Get the word wrap
      *
-     * @return boolean
+     * @return bool
      */
     public function getWordWrap()
     {
@@ -218,7 +218,7 @@ class DocBlockGenerator extends AbstractGenerator
     public function generate()
     {
         if (!$this->isSourceDirty()) {
-            return $this->docCommentize($this->getSourceContent());
+            return $this->docCommentize(trim($this->getSourceContent()));
         }
 
         $output = '';

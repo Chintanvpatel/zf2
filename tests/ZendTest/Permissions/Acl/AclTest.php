@@ -1168,7 +1168,7 @@ class AclTest extends \PHPUnit_Framework_TestCase
         $assertion->assertReturnValue = false;
         $this->assertFalse($acl->isAllowed($user, $blogPost, 'modify'), 'Assertion should return false');
 
-        // check to see if the last assertion has the proper objets
+        // check to see if the last assertion has the proper objects
         $this->assertInstanceOf('ZendTest\Permissions\Acl\TestAsset\UseCase1\User', $assertion->lastAssertRole, 'Assertion did not receive proper role object');
         $this->assertInstanceOf('ZendTest\Permissions\Acl\TestAsset\UseCase1\BlogPost', $assertion->lastAssertResource, 'Assertion did not receive proper resource object');
 
@@ -1209,7 +1209,7 @@ class AclTest extends \PHPUnit_Framework_TestCase
     /**
      * @group ZF-8039
      *
-     * Meant to test for the (in)existance of this notice:
+     * Meant to test for the (in)existence of this notice:
      * "Notice: Undefined index: allPrivileges in lib/Zend/Acl.php on line 682"
      */
     public function testMethodRemoveAllowDoesNotThrowNotice()
@@ -1224,13 +1224,13 @@ class AclTest extends \PHPUnit_Framework_TestCase
     public function testRoleObjectImplementsToString()
     {
         $role = new Role\GenericRole('_fooBar_');
-        $this->assertEquals('_fooBar_',(string)$role);
+        $this->assertEquals('_fooBar_',(string) $role);
     }
 
     public function testResourceObjectImplementsToString()
     {
         $resource = new Resource\GenericResource('_fooBar_');
-        $this->assertEquals('_fooBar_',(string)$resource);
+        $this->assertEquals('_fooBar_',(string) $resource);
     }
 
     /**
@@ -1371,5 +1371,16 @@ class AclTest extends \PHPUnit_Framework_TestCase
         $this->_acl->addResource($resourceFoo);
 
         $this->_acl->setRule(Acl\Acl::OP_ADD, Acl\Acl::TYPE_ALLOW, $roleGuest, $resourceFoo);
+    }
+
+    /**
+     * @group 4226
+     */
+    public function testAllowNullPermissionAfterResourcesExistShouldAllowAllPermissionsForRole()
+    {
+        $this->_acl->addRole('admin');
+        $this->_acl->addResource('newsletter');
+        $this->_acl->allow('admin');
+        $this->assertTrue($this->_acl->isAllowed('admin'));
     }
 }

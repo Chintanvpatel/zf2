@@ -16,19 +16,21 @@ use Zend\InputFilter\Factory;
 use Zend\InputFilter\Input;
 use Zend\InputFilter\InputFilter;
 use Zend\Validator;
+use Zend\InputFilter\InputFilterPluginManager;
+use Zend\ServiceManager;
 
 class FactoryTest extends TestCase
 {
-    public function testFactoryDoesNotComposeFilterChainByDefault()
+    public function testFactoryComposesFilterChainByDefault()
     {
         $factory = new Factory();
-        $this->assertNull($factory->getDefaultFilterChain());
+        $this->assertInstanceOf('Zend\Filter\FilterChain', $factory->getDefaultFilterChain());
     }
 
-    public function testFactoryDoesNotComposeValidatorChainByDefault()
+    public function testFactoryComposesValidatorChainByDefault()
     {
         $factory = new Factory();
-        $this->assertNull($factory->getDefaultValidatorChain());
+        $this->assertInstanceOf('Zend\Validator\ValidatorChain', $factory->getDefaultValidatorChain());
     }
 
     public function testFactoryAllowsInjectingFilterChain()
@@ -240,6 +242,17 @@ class FactoryTest extends TestCase
         $this->assertEquals('foo', $input->getName());
     }
 
+    public function testFactoryWillCreateInputWithContinueIfEmptyFlag()
+    {
+        $factory = new Factory();
+        $input = $factory->createInput(array(
+            'name'              => 'foo',
+            'continue_if_empty' => true,
+        ));
+        $this->assertInstanceOf('Zend\InputFilter\InputInterface', $input);
+        $this->assertTrue($input->continueIfEmpty());
+    }
+
     public function testFactoryAcceptsInputInterface()
     {
         $factory = new Factory();
@@ -339,11 +352,15 @@ class FactoryTest extends TestCase
                 'type' => 'ZendTest\InputFilter\TestAsset\CustomInput',
                 'name' => 'bat',
             ),
+            'zomg' => array(
+                'name' => 'zomg',
+                'continue_if_empty' => true,
+            ),
         ));
         $this->assertInstanceOf('Zend\InputFilter\InputFilter', $inputFilter);
-        $this->assertEquals(4, count($inputFilter));
+        $this->assertEquals(5, count($inputFilter));
 
-        foreach (array('foo', 'bar', 'baz', 'bat') as $name) {
+        foreach (array('foo', 'bar', 'baz', 'bat', 'zomg') as $name) {
             $input = $inputFilter->get($name);
 
             switch ($name) {
@@ -373,6 +390,9 @@ class FactoryTest extends TestCase
                     $this->assertInstanceOf('ZendTest\InputFilter\TestAsset\CustomInput', $input);
                     $this->assertEquals('bat', $input->getName());
                     break;
+                case 'zomg':
+                    $this->assertInstanceOf('Zend\InputFilter\Input', $input);
+                    $this->assertTrue($input->continueIfEmpty());
             }
         }
     }
@@ -414,6 +434,21 @@ class FactoryTest extends TestCase
         $this->assertSame($chain, $test);
     }
 
+    public function testFactoryAcceptsCollectionInputFilter()
+    {
+        $factory = new Factory();
+
+        $inputFilter = $factory->createInputFilter(array(
+            'type'        => 'Zend\InputFilter\CollectionInputFilter',
+            'inputfilter' => new InputFilter(),
+            'count'       => 3
+        ));
+
+        $this->assertInstanceOf('Zend\InputFilter\CollectionInputFilter', $inputFilter);
+        $this->assertInstanceOf('Zend\InputFilter\InputFilter', $inputFilter->getInputFilter());
+        $this->assertEquals(3, $inputFilter->getCount());
+    }
+
     public function testFactoryWillCreateInputWithErrorMessage()
     {
         $factory = new Factory();
@@ -452,7 +487,7 @@ class FactoryTest extends TestCase
         // string_to_upper (1001), string_to_lower (1000), string_trim (999)
         $index = 0;
         foreach($input->getFilterChain()->getFilters() as $filter) {
-            switch($index) {
+            switch ($index) {
                 case 0:
                     $this->assertInstanceOf('Zend\Filter\StringToUpper', $filter);
                     break;
@@ -465,5 +500,72 @@ class FactoryTest extends TestCase
             }
             $index++;
         }
+    }
+
+    public function testConflictNameWithInputFilterType()
+    {
+        $factory = new Factory();
+
+        $inputFilter = $factory->createInputFilter(
+            array(
+                'type' => array(
+                    'required' => true
+                )
+            )
+        );
+
+        $this->assertInstanceOf('Zend\InputFilter\InputFilter', $inputFilter);
+        $this->assertTrue($inputFilter->has('type'));
+    }
+
+    public function testCustomFactoryInCollection()
+    {
+        $factory = new TestAsset\CustomFactory();
+        $inputFilter = $factory->createInputFilter(array(
+            'type'        => 'collection',
+            'input_filter' => new InputFilter(),
+        ));
+        $this->assertInstanceOf('ZendTest\InputFilter\TestAsset\CustomFactory', $inputFilter->getFactory());
+    }
+
+    /**
+     * @group 4838
+     */
+    public function testCanSetInputErrorMessage()
+    {
+        $factory = new Factory();
+        $input   = $factory->createInput(array(
+            'name'          => 'test',
+            'type'          => 'Zend\InputFilter\Input',
+            'error_message' => 'Custom error message',
+        ));
+        $this->assertEquals('Custom error message', $input->getErrorMessage());
+    }
+
+    public function testSetInputFilterManagerWithServiceManager()
+    {
+        $inputFilterManager = new InputFilterPluginManager;
+        $serviceManager = new ServiceManager\ServiceManager;
+        $serviceManager->setService('ValidatorManager', new Validator\ValidatorPluginManager);
+        $serviceManager->setService('FilterManager', new Filter\FilterPluginManager);
+        $inputFilterManager->setServiceLocator($serviceManager);
+        $factory = new Factory();
+        $factory->setInputFilterManager($inputFilterManager);
+        $this->assertInstanceOf(
+            'Zend\Validator\ValidatorPluginManager',
+            $factory->getDefaultValidatorChain()->getPluginManager()
+        );
+        $this->assertInstanceOf(
+            'Zend\Filter\FilterPluginManager',
+            $factory->getDefaultFilterChain()->getPluginManager()
+        );
+    }
+
+    public function testSetInputFilterManagerWithoutServiceManager()
+    {
+        $inputFilterManager = new InputFilterPluginManager();
+        $factory = new Factory();
+        $factory->setInputFilterManager($inputFilterManager);
+        $this->assertSame($inputFilterManager, $factory->getInputFilterManager());
     }
 }

@@ -36,10 +36,7 @@ use Zend\EventManager\EventManagerInterface;
 class ElementAnnotationsListener extends AbstractAnnotationsListener
 {
     /**
-     * Attach listeners
-     *
-     * @param  EventManagerInterface $events
-     * @return void
+     * {@inheritDoc}
      */
     public function attach(EventManagerInterface $events)
     {
@@ -254,9 +251,8 @@ class ElementAnnotationsListener extends AbstractAnnotationsListener
             return;
         }
 
-        $name       = $e->getParam('name');
-        $filterSpec = $e->getParam('filterSpec');
-        $filterSpec[$name] = $annotation->getInput();
+        $inputSpec = $e->getParam('inputSpec');
+        $inputSpec['type'] = $annotation->getInput();
     }
 
     /**

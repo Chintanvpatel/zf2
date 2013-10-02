@@ -11,6 +11,7 @@
 namespace ZendTest\Http;
 
 use ReflectionClass;
+use Zend\Uri\Http;
 use Zend\Http\Client;
 use Zend\Http\Cookies;
 use Zend\Http\Exception;
@@ -18,6 +19,7 @@ use Zend\Http\Header\AcceptEncoding;
 use Zend\Http\Header\SetCookie;
 use Zend\Http\Request;
 use Zend\Http\Response;
+use Zend\Http\Client\Adapter\Test;
 
 
 class ClientTest extends \PHPUnit_Framework_TestCase
@@ -197,5 +199,225 @@ class ClientTest extends \PHPUnit_Framework_TestCase
     public function testEncodeAuthHeaderThrowsExceptionWhenInvalidAuthTypeIsUsed()
     {
         $encoded = Client::encodeAuthHeader('test', 'test', 'test');
+    }
+
+    public function testIfMaxredirectWorksCorrectly()
+    {
+        $testAdapter = new Test();
+        // first response, contains a redirect
+        $testAdapter->setResponse(
+            "HTTP/1.1 303 See Other\r\n"
+            . "Location: http://www.example.org/part2\r\n\r\n"
+            . "Page #1"
+        );
+        // seconds response, contains a redirect
+        $testAdapter->addResponse(
+            "HTTP/1.1 303 See Other\r\n"
+            . "Location: http://www.example.org/part3\r\n\r\n"
+            . "Page #2"
+        );
+        // third response
+        $testAdapter->addResponse(
+            "HTTP/1.1 303 See Other\r\n\r\n"
+            . "Page #3"
+        );
+
+        // create a client which allows one redirect at most!
+        $client = new Client('http://www.example.org/part1', array(
+            'adapter' => $testAdapter,
+            'maxredirects' => 1,
+            'storeresponse' => true
+        ));
+
+        // do the request
+        $response = $client->setMethod('GET')->send();
+
+        // response should be the second response, since third response should not
+        // be requested, due to the maxredirects = 1 limit
+        $this->assertEquals($response->getContent(), "Page #2");
+    }
+
+    public function testIfClientDoesNotLooseAuthenticationOnRedirect()
+    {
+        // set up user credentials
+        $user = 'username123';
+        $password = 'password456';
+        $encoded = Client::encodeAuthHeader($user, $password, Client::AUTH_BASIC);
+
+        // set up two responses that simulate a redirection
+        $testAdapter = new Test();
+        $testAdapter->setResponse(
+            "HTTP/1.1 303 See Other\r\n"
+            . "Location: http://www.example.org/part2\r\n\r\n"
+            . "The URL of this page has changed."
+        );
+        $testAdapter->addResponse(
+            "HTTP/1.1 200 OK\r\n\r\n"
+            . "Welcome to this Website."
+        );
+
+        // create client with HTTP basic authentication
+        $client = new Client('http://www.example.org/part1', array(
+            'adapter' => $testAdapter,
+            'maxredirects' => 1
+        ));
+        $client->setAuth($user, $password, Client::AUTH_BASIC);
+
+        // do request
+        $response = $client->setMethod('GET')->send();
+
+        // the last request should contain the Authorization header
+        $this->assertTrue(strpos($client->getLastRawRequest(), $encoded) !== false);
+    }
+
+    public function testIfClientDoesNotForwardAuthenticationToForeignHost()
+    {
+        // set up user credentials
+        $user = 'username123';
+        $password = 'password456';
+        $encoded = Client::encodeAuthHeader($user, $password, Client::AUTH_BASIC);
+
+        $testAdapter = new Test();
+        $client = new Client(null, array('adapter' => $testAdapter));
+
+        // set up two responses that simulate a redirection from example.org to example.com
+        $testAdapter->setResponse(
+            "HTTP/1.1 303 See Other\r\n"
+            . "Location: http://example.com/part2\r\n\r\n"
+            . "The URL of this page has changed."
+        );
+        $testAdapter->addResponse(
+            "HTTP/1.1 200 OK\r\n\r\n"
+            . "Welcome to this Website."
+        );
+
+        // set auth and do request
+        $client->setUri('http://example.org/part1')
+            ->setAuth($user, $password, Client::AUTH_BASIC);
+        $response = $client->setMethod('GET')->send();
+
+        // the last request should NOT contain the Authorization header,
+        // because example.com is different from example.org
+        $this->assertTrue(strpos($client->getLastRawRequest(), $encoded) === false);
+
+        // set up two responses that simulate a rediration from example.org to sub.example.org
+        $testAdapter->setResponse(
+            "HTTP/1.1 303 See Other\r\n"
+            . "Location: http://sub.example.org/part2\r\n\r\n"
+            . "The URL of this page has changed."
+        );
+        $testAdapter->addResponse(
+            "HTTP/1.1 200 OK\r\n\r\n"
+            . "Welcome to this Website."
+        );
+
+        // set auth and do request
+        $client->setUri('http://example.org/part1')
+            ->setAuth($user, $password, Client::AUTH_BASIC);
+        $response = $client->setMethod('GET')->send();
+
+        // the last request should contain the Authorization header,
+        // because sub.example.org is a subdomain unter example.org
+        $this->assertFalse(strpos($client->getLastRawRequest(), $encoded) === false);
+
+        // set up two responses that simulate a rediration from sub.example.org to example.org
+        $testAdapter->setResponse(
+            "HTTP/1.1 303 See Other\r\n"
+            . "Location: http://example.org/part2\r\n\r\n"
+            . "The URL of this page has changed."
+        );
+        $testAdapter->addResponse(
+            "HTTP/1.1 200 OK\r\n\r\n"
+            . "Welcome to this Website."
+        );
+
+        // set auth and do request
+        $client->setUri('http://sub.example.org/part1')
+            ->setAuth($user, $password, Client::AUTH_BASIC);
+        $response = $client->setMethod('GET')->send();
+
+        // the last request should NOT contain the Authorization header,
+        // because example.org is not a subdomain unter sub.example.org
+        $this->assertTrue(strpos($client->getLastRawRequest(), $encoded) === false);
+    }
+
+    public function testAdapterAlwaysReachableIfSpecified()
+    {
+        $testAdapter = new Test();
+        $client = new Client('http://www.example.org/', array(
+            'adapter' => $testAdapter,
+        ));
+
+        $this->assertSame($testAdapter, $client->getAdapter());
+    }
+
+    /**
+     * Custom response object is set but still invalid code coming back
+     * @expectedException Zend\Http\Exception\InvalidArgumentException
+     */
+    public function testUsageOfCustomResponseInvalidCode()
+    {
+        require_once(dirname(realpath(__FILE__)) . DIRECTORY_SEPARATOR .'_files' . DIRECTORY_SEPARATOR . 'CustomResponse.php');
+        $testAdapter = new Test();
+        $testAdapter->setResponse(
+            "HTTP/1.1 496 CustomResponse\r\n\r\n"
+            . "Whatever content"
+        );
+
+        $client = new Client('http://www.example.org/', array(
+            'adapter' => $testAdapter,
+        ));
+        $client->setResponse(new CustomResponse());
+        $response = $client->send();
+    }
+
+    /**
+     * Custom response object is set with defined status code 497.
+     * Should not throw an exception.
+     */
+    public function testUsageOfCustomResponseCustomCode()
+    {
+        require_once(dirname(realpath(__FILE__)) . DIRECTORY_SEPARATOR .'_files' . DIRECTORY_SEPARATOR . 'CustomResponse.php');
+        $testAdapter = new Test();
+        $testAdapter->setResponse(
+            "HTTP/1.1 497 CustomResponse\r\n\r\n"
+            . "Whatever content"
+        );
+
+        $client = new Client('http://www.example.org/', array(
+            'adapter' => $testAdapter,
+        ));
+        $client->setResponse(new CustomResponse());
+        $response = $client->send();
+
+        $this->assertInstanceOf('ZendTest\Http\CustomResponse', $response);
+        $this->assertEquals(497, $response->getStatusCode());
+        $this->assertEquals('Whatever content', $response->getContent());
+    }
+
+    public function testPrepareHeadersCreateRightHttpField()
+    {
+        $body = json_encode(array('foofoo'=>'barbar'));
+
+        $client = new Client();
+        $prepareHeadersReflection = new \ReflectionMethod($client, 'prepareHeaders');
+        $prepareHeadersReflection->setAccessible(true);
+
+        $request= new Request();
+        $request->getHeaders()->addHeaderLine('content-type','application/json');
+        $request->getHeaders()->addHeaderLine('content-length',strlen($body));
+        $client->setRequest($request);
+
+        $client->setEncType('application/json');
+
+        $this->assertSame($client->getRequest(),$request);
+
+        $headers = $prepareHeadersReflection->invoke($client,$body,new Http('http://localhost:5984'));
+
+        $this->assertArrayNotHasKey('content-type', $headers);
+        $this->assertArrayHasKey('Content-Type', $headers);
+
+        $this->assertArrayNotHasKey('content-length', $headers);
+        $this->assertArrayHasKey('Content-Length', $headers);
     }
 }

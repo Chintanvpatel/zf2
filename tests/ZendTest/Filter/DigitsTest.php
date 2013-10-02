@@ -11,6 +11,7 @@
 namespace ZendTest\Filter;
 
 use Zend\Filter\Digits as DigitsFilter;
+use Zend\Stdlib\ErrorHandler;
 
 /**
  * @category   Zend
@@ -34,8 +35,8 @@ class DigitsTest extends \PHPUnit_Framework_TestCase
      */
     public function setUp()
     {
-        if (null === self::$_unicodeEnabled) {
-            self::$_unicodeEnabled = (@preg_match('/\pL/u', 'a')) ? true : false;
+        if (null === static::$_unicodeEnabled) {
+            static::$_unicodeEnabled = (@preg_match('/\pL/u', 'a')) ? true : false;
         }
     }
 
@@ -48,7 +49,7 @@ class DigitsTest extends \PHPUnit_Framework_TestCase
     {
         $filter = new DigitsFilter();
 
-        if (self::$_unicodeEnabled && extension_loaded('mbstring')) {
+        if (static::$_unicodeEnabled && extension_loaded('mbstring')) {
             // Filter for the value with mbstring
             /**
              * The first element of $valuesExpected contains multibyte digit characters.
@@ -84,5 +85,34 @@ class DigitsTest extends \PHPUnit_Framework_TestCase
                 "Expected '$input' to filter to '$output', but received '$result' instead"
                 );
         }
+    }
+
+    /**
+     * Ensures that an error is raised if array is used
+     *
+     * @return void
+     */
+    public function testWarningIsRaisedIfArrayUsed()
+    {
+        $filter = new DigitsFilter();
+        $input = array('abc123', 'abc 123');
+
+        ErrorHandler::start(E_USER_WARNING);
+        $filtered = $filter->filter($input);
+        $err = ErrorHandler::stop();
+
+        $this->assertEquals($input, $filtered);
+        $this->assertInstanceOf('ErrorException', $err);
+        $this->assertContains('cannot filter', $err->getMessage());
+    }
+
+    /**
+     * @return void
+     */
+    public function testReturnsNullIfNullIsUsed()
+    {
+        $filter   = new DigitsFilter();
+        $filtered = $filter->filter(null);
+        $this->assertNull($filtered);
     }
 }

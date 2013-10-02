@@ -164,7 +164,7 @@ abstract class AbstractController implements
             __CLASS__,
             get_class($this),
             $this->eventIdentifier,
-            substr(get_called_class(), 0, strpos(get_class($this), '\\'))
+            substr(get_class($this), 0, strpos(get_class($this), '\\'))
         ));
         $this->events = $events;
         $this->attachDefaultListeners();
@@ -198,7 +198,7 @@ abstract class AbstractController implements
      */
     public function setEvent(Event $e)
     {
-        if ($e instanceof Event && !$e instanceof MvcEvent) {
+        if (!$e instanceof MvcEvent) {
             $eventParams = $e->getParams();
             $e = new MvcEvent();
             $e->setParams($eventParams);
